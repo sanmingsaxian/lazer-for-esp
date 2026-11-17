@@ -1,3 +1,9 @@
+/*
+Lazer for ESP 目前只为cardputer以及其他st7789设备适配了
+by ChenhaoZhang
+2262881823@qq.com
+*/
+
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include <esp_system.h>

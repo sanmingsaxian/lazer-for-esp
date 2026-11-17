@@ -19,7 +19,7 @@ bool AudioEngine::begin() {
         return false;
     }
     setVolume(_volume);
-    // Keep MP3 decoding off Core 0, where the Wi-Fi/BT protocol tasks run.
+    // 关闭保持和wifi.
     // A larger stack margin is useful when ID3 and decoder frames overlap.
     BaseType_t ok = xTaskCreatePinnedToCore(taskEntry, "LazerAudio", 20480, this, 4,
                                             &_taskHandle, 1);

@@ -1,8 +1,7 @@
 #include <Arduino.h>
 #include <M5Cardputer.h>
 
-// Minimal Cardputer v1.1 / Stamp-S3A LCD diagnostic.
-// No SD, audio, preferences, canvas, or player code is initialized.
+// 屏幕测试工具而已
 void setup() {
     pinMode(38, OUTPUT);
     digitalWrite(38, HIGH);
@@ -44,7 +43,6 @@ void setup() {
 }
 
 void loop() {
-    // A blinking dot proves the application is alive without redrawing the panel.
     static bool on = false;
     on = !on;
     M5Cardputer.Display.fillCircle(120, 121, 5, on ? TFT_GREEN : TFT_DARKGREEN);

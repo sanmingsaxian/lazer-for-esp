@@ -1,9 +1,7 @@
 #ifndef Pins_Arduino_h
 #define Pins_Arduino_h
 
-// Cardputer v1.1 / Stamp-S3A variant for Arduino-ESP32 2.0.x.
-// Kept in the project because PlatformIO's 2.0.17 framework package
-// predates the upstream m5stack_cardputer variant.
+// 自行定义自己设备的引脚
 #include <stdint.h>
 #include "soc/soc_caps.h"
 
