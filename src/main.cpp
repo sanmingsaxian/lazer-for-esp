@@ -6,9 +6,7 @@
 #include "UI.h"
 
 void setup() {
-    // Stamp-S3A / Cardputer v1.1: GPIO38 supplies the LCD backlight.
-    // Enable it before library auto-detection so a failed display probe never
-    // leaves the device looking completely powered off.
+    // Stamp-S3A 背光引脚为gpio38 请定义自己的
     pinMode(38, OUTPUT);
     digitalWrite(38, HIGH);
 
