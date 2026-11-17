@@ -1,3 +1,9 @@
+/*
+Lazer for ESP 主要适配cardputer  2026.11.16
+by ChenhaoZhang
+2262881823@qq.com
+*/
+
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include "App.h"
