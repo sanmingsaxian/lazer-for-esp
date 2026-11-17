@@ -12,15 +12,17 @@ constexpr int I2S_DOUT = 42;
 
 bool AudioEngine::begin() {
     M5Cardputer.Speaker.end();
-    _output = new AudioOutputI2S(0, AudioOutputI2S::EXTERNAL_I2S, 12, AudioOutputI2S::APLL_DISABLE);
+    _output = new AudioOutputI2S(0, AudioOutputI2S::EXTERNAL_I2S, 16, AudioOutputI2S::APLL_DISABLE);
     if (!_output || !_output->SetPinout(I2S_BCLK, I2S_LRCK, I2S_DOUT)) {
         snprintf(_error, sizeof(_error), "I2S init failed");
         _state = AudioState::Error;
         return false;
     }
     setVolume(_volume);
-    BaseType_t ok = xTaskCreatePinnedToCore(taskEntry, "LazerAudio", 16384, this, 3,
-                                            &_taskHandle, 0);
+    // Keep MP3 decoding off Core 0, where the Wi-Fi/BT protocol tasks run.
+    // A larger stack margin is useful when ID3 and decoder frames overlap.
+    BaseType_t ok = xTaskCreatePinnedToCore(taskEntry, "LazerAudio", 20480, this, 4,
+                                            &_taskHandle, 1);
     if (ok != pdPASS) {
         snprintf(_error, sizeof(_error), "Audio task failed");
         _state = AudioState::Error;
@@ -31,6 +33,10 @@ bool AudioEngine::begin() {
 
 void AudioEngine::taskEntry(void* argument) {
     static_cast<AudioEngine*>(argument)->task();
+}
+
+uint32_t AudioEngine::stackHighWater() const {
+    return _taskHandle ? (uint32_t)uxTaskGetStackHighWaterMark(_taskHandle) : 0;
 }
 
 void AudioEngine::setVolume(uint8_t volume) {
@@ -82,7 +88,7 @@ void AudioEngine::pause() {
 
 void AudioEngine::resume() {
     if (_currentTrack < 0 || _state == AudioState::Loading) return;
-    if (_state == AudioState::Error) {
+    if (_state == AudioState::Error || !_mp3) {
         play(_currentTrack, _positionBase);
         return;
     }
@@ -133,6 +139,55 @@ void AudioEngine::seek(int deltaSeconds) {
     _command = Seek;
 }
 
+bool AudioEngine::storageBegin() {
+    if (_storageRequested) return _storageReady;
+    _storageTrack = _currentTrack;
+    const Track* current = _storageTrack >= 0 ? Library.track(_storageTrack) : nullptr;
+    _storagePath = current ? current->path : "";
+    _storagePosition = position();
+    _storageResume = _wantPlaying && _currentTrack >= 0;
+    _storageReady = false;
+    _storageRequested = true;
+    _wantPlaying = false;
+    if (_state != AudioState::Error) {
+        _state = _currentTrack >= 0 ? AudioState::Paused : AudioState::Empty;
+    }
+    _command = Eject;
+    if (!_taskHandle) {
+        _storageReady = true;
+        return true;
+    }
+    const uint32_t started = millis();
+    while (!_storageReady && millis() - started < 2500) delay(2);
+    return _storageReady;
+}
+
+void AudioEngine::storageEnd() {
+    if (!_storageRequested) return;
+    const bool resume = _storageResume;
+    const String path = _storagePath;
+    const uint32_t savedPosition = _storagePosition;
+    _storageResume = false;
+    _storagePath = "";
+    _storageRequested = false;
+    _storageReady = false;
+    const int track = path.length() ? Library.findByPath(path) : -1;
+    if (track >= 0 && resume) {
+        play(track, savedPosition);
+    } else if (track >= 0) {
+        // Keep a paused selection usable. resume() will reload the decoder,
+        // which was deliberately destroyed while the web session owned SD.
+        _currentTrack = track;
+        _positionBase = savedPosition;
+        _clockStart = millis();
+        _wantPlaying = false;
+        _state = AudioState::Paused;
+        _command = None;
+    } else {
+        eject();
+    }
+}
+
 uint32_t AudioEngine::position() const {
     if (!_wantPlaying || _state == AudioState::Loading) return _positionBase;
     uint32_t value = _positionBase + (millis() - _clockStart) / 1000;
@@ -171,8 +226,16 @@ bool AudioEngine::loadTrack(int index, uint32_t startSeconds) {
     }
     Lyrics.load(track->path, track->seed);
     _source = new AudioFileSourceSD(track->path.c_str());
-    _id3 = new AudioFileSourceID3(_source);
-    _mp3 = new AudioGeneratorMP3();
+    _id3 = _source ? new AudioFileSourceID3(_source) : nullptr;
+    _mp3 = _id3 ? new AudioGeneratorMP3() : nullptr;
+    if (!_source || !_id3 || !_mp3) {
+        snprintf(_error, sizeof(_error), "Not enough memory for MP3");
+        Serial.printf("MP3_MEMORY_ERROR freeHeap=%u maxAlloc=%u\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+        _wantPlaying = false;
+        _state = AudioState::Error;
+        destroyDecoder();
+        return false;
+    }
     if (startSeconds && track->bitrate) {
         uint64_t bytePosition = ((uint64_t)startSeconds * track->bitrate) / 8;
         if (bytePosition < track->fileSize) _id3->seek((uint32_t)bytePosition, SEEK_SET);
@@ -188,12 +251,24 @@ bool AudioEngine::loadTrack(int index, uint32_t startSeconds) {
     _clockStart = millis();
     _wantPlaying = true;
     _state = AudioState::Playing;
+    Serial.printf("MP3_STARTED track=%d freeHeap=%u minFreeHeap=%u audioStackHwm=%u\n",
+                  index, ESP.getFreeHeap(), ESP.getMinFreeHeap(), stackHighWater());
     return true;
 }
 
 void AudioEngine::task() {
     bool decoderWasRunning = false;
+    uint32_t lastReport = millis();
     for (;;) {
+        if (_storageRequested) {
+            if (!_storageReady) {
+                destroyDecoder();
+                decoderWasRunning = false;
+                _storageReady = true;
+            }
+            vTaskDelay(pdMS_TO_TICKS(3));
+            continue;
+        }
         Command command = _command;
         if (command != None) {
             _command = None;
@@ -219,6 +294,14 @@ void AudioEngine::task() {
             }
             vTaskDelay(pdMS_TO_TICKS(4));
         }
-        taskYIELD();
+        if (_wantPlaying && millis() - lastReport >= 10000) {
+            lastReport = millis();
+            Serial.printf("AUDIO_ALIVE pos=%lu freeHeap=%u minFreeHeap=%u audioStackHwm=%u\n",
+                          (unsigned long)position(), ESP.getFreeHeap(), ESP.getMinFreeHeap(),
+                          stackHighWater());
+        }
+        // A real delay also yields to lower-priority Arduino/Web tasks on Core 1;
+        // taskYIELD() alone only considers tasks at the same or higher priority.
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 }

@@ -40,6 +40,7 @@ private:
     void drawLyrics(int yOffset);
     void drawQueue();
     void drawHelp();
+    void drawTextEditor();
     void drawToast();
     void drawPlayIcon(int x, int y, bool playing, uint16_t tint, int scale = 1);
     void drawNextIcon(int x, int y, bool previous, uint16_t tint);

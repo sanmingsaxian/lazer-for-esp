@@ -13,6 +13,15 @@ void UserSettings::begin() {
     showLyrics = _preferences.getBool("lyrics", true);
     playMode = (PlayMode)_preferences.getUChar("mode", 0);
     if ((uint8_t)playMode > 2) playMode = PlayMode::Sequential;
+    webEnabled = _preferences.getBool("web", true);
+    staSsid = _preferences.getString("stassid", "");
+    staPassword = _preferences.getString("stapass", "");
+    apSsid = _preferences.getString("apssid", "Lazer-Cardputer");
+    apPassword = _preferences.getString("appass", "lazer1234");
+    webPassword = _preferences.getString("webpass", "lazer1234");
+    if (!apSsid.length()) apSsid = "Lazer-Cardputer";
+    if (apPassword.length() < 8) apPassword = "lazer1234";
+    if (webPassword.length() < 8) webPassword = "lazer1234";
 }
 
 void UserSettings::save() {
@@ -22,6 +31,12 @@ void UserSettings::save() {
     _preferences.putBool("reduce", reduceMotion);
     _preferences.putBool("lyrics", showLyrics);
     _preferences.putUChar("mode", (uint8_t)playMode);
+    _preferences.putBool("web", webEnabled);
+    _preferences.putString("stassid", staSsid);
+    _preferences.putString("stapass", staPassword);
+    _preferences.putString("apssid", apSsid);
+    _preferences.putString("appass", apPassword);
+    _preferences.putString("webpass", webPassword);
 }
 
 bool UserSettings::isFavorite(uint32_t seed) {

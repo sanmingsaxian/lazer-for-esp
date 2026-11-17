@@ -24,6 +24,8 @@ public:
     void next(bool automatic = false);
     void previous();
     void seek(int deltaSeconds);
+    bool storageBegin();
+    void storageEnd();
     void setVolume(uint8_t volume);
     void setPlayMode(PlayMode mode) { _mode = mode; }
 
@@ -34,6 +36,7 @@ public:
     bool playing() const { return _wantPlaying; }
     PlayMode playMode() const { return _mode; }
     const char* error() const { return _error; }
+    uint32_t stackHighWater() const;
 
 private:
     enum Command : uint8_t { None, Load, Seek, Eject };
@@ -55,6 +58,12 @@ private:
     volatile int _currentTrack = -1;
     volatile AudioState _state = AudioState::Empty;
     volatile bool _wantPlaying = false;
+    volatile bool _storageRequested = false;
+    volatile bool _storageReady = false;
+    int _storageTrack = -1;
+    String _storagePath;
+    uint32_t _storagePosition = 0;
+    bool _storageResume = false;
     volatile PlayMode _mode = PlayMode::Sequential;
     volatile uint32_t _positionBase = 0;
     volatile uint32_t _clockStart = 0;

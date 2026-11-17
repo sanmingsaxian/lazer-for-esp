@@ -1,4 +1,5 @@
 #include "UI.h"
+#include "WebControl.h"
 #include <math.h>
 
 LazerUI UI;
@@ -186,6 +187,7 @@ void LazerUI::render() {
     if (playerAmount > 0.001f) drawNowPlaying((1.0f - easeInOutCubic(playerAmount)) * 135.0f);
     if (App.queueOpen) drawQueue();
     if (App.helpOpen) drawHelp();
+    if (App.textEditOpen) drawTextEditor();
     if (App.toast.length()) drawToast();
     canvas.pushSprite(0, 0);
 }
@@ -275,28 +277,30 @@ void LazerUI::drawLibrary(int xOffset, bool favorites) {
 
 void LazerUI::drawSettings(int xOffset) {
     text("设置", 8 + xOffset, 13, 150, label(), FontRole::Title);
-    const char* names[6] = {"深色外观", "显示歌词", "减少动态效果", "播放模式", "屏幕亮度", "重新扫描曲库"};
-    String values[6] = {Settings.dark ? "开启" : "关闭", Settings.showLyrics ? "开启" : "关闭",
+    const char* names[10] = {"深色外观", "显示歌词", "减少动态效果", "播放模式", "屏幕亮度",
+                             "重新扫描曲库", "WebUI 地址", "AP 名称", "AP 密码", "重启应用配置"};
+    String values[10] = {Settings.dark ? "开启" : "关闭", Settings.showLyrics ? "开启" : "关闭",
                         Settings.reduceMotion ? "开启" : "关闭",
                         Settings.playMode == PlayMode::Sequential ? "顺序" :
                             (Settings.playMode == PlayMode::RepeatOne ? "单曲" : "随机"),
-                        String(Settings.brightness * 100 / 255) + "%", "ENTER"};
-    int first = constrain(App.settingsCursor - 2, 0, 3);
+                        String(Settings.brightness * 100 / 255) + "%", "ENTER", Web.address(),
+                        Settings.apSsid, Settings.apPassword.length() ? "********" : "未设置", "ENTER"};
+    int first = constrain(App.settingsCursor - 2, 0, 7);
     for (int row = 0; row < 3; ++row) {
         int index = first + row;
         int y = 35 + row * 18;
         bool selected = index == App.settingsCursor;
         canvas.fillRoundRect(7 + xOffset, y - 2, 226, 17, 5,
                              selected ? blend(card(), accent(), 0.18f) : card());
-        text(names[index], 13 + xOffset, y - 1, 126, selected ? label() : secondary(), FontRole::Body);
-        text(values[index], 174 + xOffset, y + 1, 51,
+        text(names[index], 13 + xOffset, y - 1, 116, selected ? label() : secondary(), FontRole::Body);
+        text(values[index], 225 + xOffset, y + 1, (index >= 6 && index <= 8) ? 92 : 51,
              selected ? accent() : secondary(), FontRole::Tiny, TR_DATUM);
         if (index == 4) {
             canvas.fillRoundRect(151 + xOffset, y + 5, 42, 3, 1, blend(card(), secondary(), 0.25f));
             canvas.fillRoundRect(151 + xOffset, y + 5, Settings.brightness * 42 / 255, 3, 1, accent());
         }
     }
-    canvas.fillRoundRect(236 + xOffset, 35 + App.settingsCursor * 8, 2, 10, 1, secondary());
+    canvas.fillRoundRect(236 + xOffset, 35 + App.settingsCursor * 5, 2, 10, 1, secondary());
 }
 
 void LazerUI::drawMiniPlayer() {
@@ -468,6 +472,30 @@ void LazerUI::drawHelp() {
         text(left[i], 16, 35 + i * 14, 106, i == 0 ? accent() : label(), FontRole::Tiny);
         text(right[i], 126, 35 + i * 14, 103, label(), FontRole::Tiny);
     }
+}
+
+void LazerUI::drawTextEditor() {
+    uint16_t panel = Settings.dark ? color(20, 18, 23) : color(252, 252, 253);
+    canvas.fillRoundRect(5, 17, 230, 102, 10, panel);
+    canvas.drawRoundRect(5, 17, 230, 102, 10, accent());
+    text(App.textEditPasswordTarget ? "设置 AP 密码" : "设置 AP 名称", 15, 23, 160,
+         label(), FontRole::Body);
+    text("ESC 取消", 222, 26, 62, secondary(), FontRole::Tiny, TR_DATUM);
+    canvas.fillRoundRect(12, 46, 216, 34, 5, blend(panel, background(), 0.45f));
+    String visible = App.textEditSecret ? "********" : App.textEditValue;
+    if (visible.length() > 28) {
+        int start = visible.length() - 28;
+        while (start < (int)visible.length() && ((uint8_t)visible[start] & 0xc0) == 0x80) ++start;
+        visible = visible.substring(start);
+    }
+    text(visible.length() ? visible : "请输入…", 18, 52, 202,
+         visible.length() ? label() : secondary(), FontRole::Tiny);
+    setFont(FontRole::Tiny, accent());
+    int cursorX = 18 + min(198, (int)canvas.textWidth(visible) + 2);
+    if ((millis() / 450) % 2 == 0) canvas.fillRect(cursorX, 52, 1, 12, accent());
+    text(App.textEditPasswordTarget ? "8–63 位；区分大小写" : "1–32 字节；支持大小写",
+         16, 88, 150, secondary(), FontRole::Tiny);
+    text("ENTER 保存", 222, 99, 76, accent(), FontRole::Tiny, TR_DATUM);
 }
 
 void LazerUI::drawToast() {

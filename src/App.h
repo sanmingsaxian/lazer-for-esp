@@ -21,6 +21,12 @@ public:
     bool lyricsMode = true;
     bool queueOpen = false;
     bool helpOpen = false;
+    bool textEditOpen = false;
+    bool textEditSecret = false;
+    bool textEditPasswordTarget = false;
+    String textEditValue;
+    String bootReset = "unknown";
+    int bootResetCode = 0;
     String toast;
     uint32_t toastUntil = 0;
 
@@ -36,6 +42,8 @@ private:
     void handlePlayerKey(const Keyboard_Class::KeysState& keys, char key);
     void handleQueueKey(const Keyboard_Class::KeysState& keys, char key);
     void handleSettingsKey(const Keyboard_Class::KeysState& keys, char key);
+    void handleTextEditKey(const Keyboard_Class::KeysState& keys);
+    void beginTextEdit(bool password);
     void selectRelative(int delta);
     void playSelected();
     void toggleSelectedFavorite();

@@ -21,6 +21,12 @@ public:
     bool reduceMotion = false;
     bool showLyrics = true;
     PlayMode playMode = PlayMode::Sequential;
+    bool webEnabled = true;
+    String staSsid;
+    String staPassword;
+    String apSsid = "Lazer-Cardputer";
+    String apPassword = "lazer1234";
+    String webPassword = "lazer1234";
 
     bool isFavorite(uint32_t seed);
     bool toggleFavorite(uint32_t seed);

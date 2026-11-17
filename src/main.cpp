@@ -1,24 +1,23 @@
-/*
-Lazer for ESP 主要适配cardputer  2026.11.16
-by ChenhaoZhang
-2262881823@qq.com
-*/
-
 #include <Arduino.h>
 #include <M5Cardputer.h>
+#include <esp_system.h>
 #include "App.h"
 #include "AudioEngine.h"
 #include "Library.h"
 #include "UI.h"
+#include "WebControl.h"
 
 void setup() {
-    // Stamp-S3A 背光引脚为gpio38 请定义自己的
+    // Stamp-S3A / Cardputer v1.1: GPIO38 supplies the LCD backlight.
+    // Enable it before library auto-detection so a failed display probe never
+    // leaves the device looking completely powered off.
     pinMode(38, OUTPUT);
     digitalWrite(38, HIGH);
 
     Serial.begin(115200);
     delay(80);
-    Serial.println("\nLazer 1.0.2 - Cardputer v1.1 / Stamp-S3A");
+    Serial.println("\nLazer " LAZER_VERSION " - Cardputer v1.1 / Stamp-S3A");
+    Serial.printf("BOOT_RESET_REASON=%d\n", (int)esp_reset_reason());
 
     auto config = M5.config();
     M5Cardputer.begin(config, true);
@@ -44,12 +43,14 @@ void setup() {
 
     const bool sdReady = Library.begin();
     const bool audioReady = Audio.begin();
+    Web.begin();
     Serial.printf("Lazer Cardputer: SD=%d, tracks=%u, audio=%d\n", sdReady,
                   (unsigned)Library.count(), audioReady);
     delay(450);
 }
 
 void loop() {
+    Web.update();
     App.update();
     UI.render();
     delay(1);

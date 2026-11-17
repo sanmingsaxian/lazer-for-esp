@@ -1,8 +1,24 @@
 #include "App.h"
+#include <esp_system.h>
 
 LazerApp App;
 
 void LazerApp::begin() {
+    bootResetCode = (int)esp_reset_reason();
+    switch (esp_reset_reason()) {
+        case ESP_RST_POWERON: bootReset = "power on"; break;
+        case ESP_RST_EXT: bootReset = "external reset"; break;
+        case ESP_RST_SW: bootReset = "software reset"; break;
+        case ESP_RST_PANIC: bootReset = "panic / exception"; break;
+        case ESP_RST_INT_WDT: bootReset = "interrupt watchdog"; break;
+        case ESP_RST_TASK_WDT: bootReset = "task watchdog"; break;
+        case ESP_RST_WDT: bootReset = "other watchdog"; break;
+        case ESP_RST_DEEPSLEEP: bootReset = "deep sleep"; break;
+        case ESP_RST_BROWNOUT: bootReset = "brownout / low voltage"; break;
+        case ESP_RST_SDIO: bootReset = "SDIO reset"; break;
+        default: bootReset = "unknown"; break;
+    }
+    Serial.printf("RESET_REASON=%d (%s)\n", bootResetCode, bootReset.c_str());
     Settings.begin();
     lyricsMode = Settings.showLyrics;
     M5Cardputer.Display.setBrightness(Settings.brightness);
@@ -58,6 +74,10 @@ void LazerApp::cyclePlayMode() {
 
 void LazerApp::handleKey(const Keyboard_Class::KeysState& keys) {
     char key = keys.word.size() ? (char)tolower(keys.word[0]) : 0;
+    if (textEditOpen) {
+        handleTextEditKey(keys);
+        return;
+    }
     if (helpOpen) {
         if ((key == '`') || keys.enter || keys.space || key == 'h') helpOpen = false;
         return;
@@ -189,7 +209,7 @@ void LazerApp::handleQueueKey(const Keyboard_Class::KeysState& keys, char key) {
 void LazerApp::handleSettingsKey(const Keyboard_Class::KeysState& keys, char key) {
     if ((keys.fn && key == ';') || (keys.fn && key == '.') || key == 'w' || key == 's') {
         int delta = ((keys.fn && key == ';') || key == 'w') ? -1 : 1;
-        settingsCursor = (settingsCursor + delta + 6) % 6;
+        settingsCursor = (settingsCursor + delta + 10) % 10;
         return;
     }
     if ((keys.fn && key == ',') || (keys.fn && key == '/')) {
@@ -227,8 +247,69 @@ void LazerApp::handleSettingsKey(const Keyboard_Class::KeysState& keys, char key
         case 5:
             rescan();
             break;
+        case 7:
+            beginTextEdit(false);
+            break;
+        case 8:
+            beginTextEdit(true);
+            break;
+        case 9:
+            Settings.save();
+            delay(80);
+            ESP.restart();
+            break;
     }
     Settings.save();
+}
+
+void LazerApp::beginTextEdit(bool password) {
+    textEditOpen = true;
+    textEditSecret = password;
+    textEditPasswordTarget = password;
+    textEditValue = password ? Settings.apPassword : Settings.apSsid;
+}
+
+void LazerApp::handleTextEditKey(const Keyboard_Class::KeysState& keys) {
+    if (keys.word.size() && keys.word[0] == '`') {
+        textEditOpen = false;
+        textEditValue = "";
+        notify("已取消修改");
+        return;
+    }
+    if (keys.enter) {
+        String value = textEditValue;
+        if (!textEditPasswordTarget) value.trim();
+        const size_t minimum = textEditPasswordTarget ? 8 : 1;
+        const size_t maximum = textEditPasswordTarget ? 63 : 32;
+        if (value.length() < minimum || value.length() > maximum) {
+            notify(textEditPasswordTarget ? "AP 密码需为 8–63 位" : "AP 名称需为 1–32 字节", 2600);
+            return;
+        }
+        if (textEditPasswordTarget) Settings.apPassword = value;
+        else Settings.apSsid = value;
+        Settings.save();
+        textEditOpen = false;
+        textEditValue = "";
+        notify("AP 配置已保存，重启后生效", 3000);
+        return;
+    }
+    if (keys.del && textEditValue.length()) {
+        size_t count = 1;
+        while (textEditValue.length() > count &&
+               ((uint8_t)textEditValue[textEditValue.length() - count] & 0xc0) == 0x80) {
+            ++count;
+        }
+        textEditValue.remove(textEditValue.length() - count, count);
+    }
+    const size_t maximum = textEditPasswordTarget ? 63 : 32;
+    bool wordHasSpace = false;
+    for (char c : keys.word) {
+        if (c == ' ') wordHasSpace = true;
+        if ((uint8_t)c >= 32 && (uint8_t)c != 127 && textEditValue.length() < maximum) {
+            textEditValue += c;
+        }
+    }
+    if (keys.space && !wordHasSpace && textEditValue.length() < maximum) textEditValue += ' ';
 }
 
 void LazerApp::selectRelative(int delta) {
@@ -269,9 +350,11 @@ void LazerApp::changeVolume(int delta) {
 
 void LazerApp::rescan() {
     notify("正在扫描曲库…", 4000);
-    Audio.eject();
-    delay(40);
-    bool ok = Library.ready() ? Library.rescan() : Library.begin();
+    const bool locked = Audio.storageBegin();
+    bool ok = false;
+    if (locked) ok = Library.ready() ? Library.rescan() : Library.begin();
+    Audio.storageEnd();
     selected = 0;
-    notify(ok ? "找到 " + String(Library.count()) + " 首音乐" : "未检测到 SD 卡");
+    notify(!locked ? "音频未停止，请稍后重试" :
+           (ok ? "找到 " + String(Library.count()) + " 首音乐" : "未检测到 SD 卡"));
 }
