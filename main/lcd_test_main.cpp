@@ -1,5 +1,6 @@
-//简易的lcd test tool
-
+// Minimal LCD diagnostic firmware: backlight + ST7789 + LVGL labels only.
+// No SD, audio, network or player UI. Replace the main firmware for display
+// bring-up, then reflash the main app afterwards.
 #include <cstdio>
 
 #include "board.h"

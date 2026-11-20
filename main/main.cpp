@@ -1,11 +1,3 @@
-/*
-Lazer for cardputer
-by ChenhaoZhang
-2262881823@qq.com
-build by ESP-IDF
-2026.11.19
-*/
-
 #include <cstdio>
 
 #include "app.h"
@@ -30,7 +22,8 @@ LV_FONT_DECLARE(font_cn_10);
 using namespace lz;
 
 extern "C" void app_main(void) {
-    //背光引脚为gpio38
+    // Stamp-S3A / Cardputer v1.1: GPIO38 supplies the LCD backlight. Enable it
+    // before any display probe so a failed init never looks like a dead unit.
     board_backlight_early();
 
     printf("\nLazer " LAZER_VERSION " - Cardputer v1.1 / Stamp-S3A (ESP-IDF native)\n");
@@ -49,7 +42,7 @@ extern "C" void app_main(void) {
     }
     keyboard_begin();
 
-    // Boot splash
+    // Boot splash, same content as the original firmware.
     lv_obj_set_style_bg_color(lv_screen_active(), lv_color_make(12, 9, 14), 0);
     lv_obj_t* title = lv_label_create(lv_screen_active());
     lv_obj_set_style_text_font(title, &font_cn_16, 0);

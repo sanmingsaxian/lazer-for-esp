@@ -1,0 +1,7 @@
+file(GLOB FONT_SOURCES ${CMAKE_CURRENT_LIST_DIR}/*.c)
+
+idf_component_register(
+    SRCS ${FONT_SOURCES}
+    INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}
+    REQUIRES lvgl
+)
