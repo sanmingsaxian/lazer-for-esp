@@ -1,0 +1,5 @@
+# LCD diagnostic build: layer on top of sdkconfig.defaults.
+# Exclude player components on the cmake command line (see README):
+#   idf.py -D EXCLUDE_COMPONENTS="web;wifi_mgr;netease;netease_audio;audio_engine;audio_out;mp3dec;library;lyrics;settings;app;storage;keyboard;ui" ...
+CONFIG_LAZER_LCD_TEST=y
+CONFIG_LAZER_BUILD_MAIN=n
