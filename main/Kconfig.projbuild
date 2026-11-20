@@ -1,0 +1,17 @@
+menu "Lazer Cardputer"
+
+choice LAZER_BUILD_TARGET
+    prompt "Build target"
+    default LAZER_BUILD_MAIN
+    help
+        Select the main player firmware or the minimal LCD diagnostic image.
+
+config LAZER_BUILD_MAIN
+    bool "Main player firmware"
+
+config LAZER_LCD_TEST
+    bool "Minimal LCD diagnostic"
+
+endchoice
+
+endmenu
